@@ -3,7 +3,7 @@
 
 
 # Goal:
- Provide a walk-through example of what goes into setting up and running ARGweaver. I draw heavily on insights/recommendations from Hubisz and Siepel (2020):
+ Provide a step-by-step example of what goes into setting up and running ARGweaver. I draw heavily on insights/recommendations from Hubisz and Siepel (2020):
 
 Hubisz M, Siepel A. Inference of ancestral recombination graphsusing ARGweaver. Methods Mol Biol.2020; 2090:231–266. https://doi.org/10.1007/978-1-0716-0199-0_10
 
@@ -15,9 +15,12 @@ Hubisz M, Siepel A. Inference of ancestral recombination graphsusing ARGweaver. 
 - I first created a small VCF file to accompany this mini tutorial by filtering down a massive VCF to just two small scaffolds and thinning to a maximum of 1 snp per 10 bp. Here are the two scaffolds in the VCF, along with their lengths:
 
 `Chromosome_33_RagTag,length=2809104`
+
 `scaffold_241,length=100119`
 
-In an actual study, users may only want to estimate the Ancestral Recombination Graph for a small genomic region (still, it would be good to include a buffer on each side of that region, say 50 kb) or across the whole genome, as in our Xiphorhynchus study. Also, you would not want to conduct any thinning--I just did that to get the VCF small enough to upload onto Github. One of the key things to remember--and which requires some careful attention--is that ARGweaver assumes that any sites not in the VCF are invariant. However, there are often many poor quality sites that we don't want to include in our ARGweaver analysis. To address this issue, ARGweaver conveniently allows us to mask poor quality sites/regions so that they are considered unknown rather than invariant. Using an all-sites VCF would also be a great option, as this would explicitly provide information for the invariant sites. Either way, there will still be some subsets of the genome that we will probably want to mask, such as repetitive regions.
+In an actual study, users may only want to estimate the Ancestral Recombination Graph for a small genomic region (still, it would be good to include a buffer on each side of that region, say 50 kb) or across the whole genome, as in our Xiphorhynchus study. Also, you would not want to conduct any site thinning--I just did that to get the VCF small enough to upload onto Github. 
+
+One of the key things to remember--and which requires some careful attention--is that ARGweaver assumes that any sites not in the VCF are invariant. However, there are often many poor quality sites that we don't want to include in our ARGweaver analysis. To address this issue, ARGweaver conveniently allows us to mask poor quality sites/regions so that they are considered unknown rather than invariant. Using an all-sites VCF would also be a great option, as this would explicitly provide information for the invariant sites. Either way, there will still be some subsets of the genome, such as repetitive regions, that are generally helpful to mask.
 
 # Programs to download:
 
@@ -31,7 +34,7 @@ In an actual study, users may only want to estimate the Ancestral Recombination 
 - Reseqtools
 - ARGweaver
 
-Note, you will need to add each of this programs to your PATH or use full paths
+Note, you will need to add each of these programs to your PATH or use full paths
 to the excecutables to run. Adding the programs to your PATH may look something like the following, depending on your setup:
 ```
 echo 'export PATH="/where/to/install/bin:$PATH"' >> ~/.bash_profile
@@ -103,29 +106,32 @@ tar -xvzf iTools_Code20180520.tar.gz
 ```
 - ARGweaver
 ```
-
 git clone https://github.com/CshlSiepelLab/ARGweaver.git 
 cd ARGweaver
 make
 ```
+# Preparation of VCF file input
+## Step 1. Take "raw" tutorial VCF file and double check what we're working with:
 
-## Step 1. Let's take our "raw" tutorial VCF file and just double check what we're working with:
+count number of individuals (should = 33):
 
-#count number of individuals (should = 33)
 `bcftools query -l xipho_ARGweaver_tutorial.vcf|wc -l`
 
-#count number of snps (should = 89,353)
+#count number of snps (should = 89,353):
+
 `grep -v "^#" xipho_ARGweaver_tutorial.vcf|wc -l`
 
-#view scaffolds (should = Chromosome_33_RagTag and scaffold_241)
+view scaffolds (should = Chromosome_33_RagTag and scaffold_241):
+
 `bcftools query -f '%CHROM\n' xipho_ARGweaver_tutorial.vcf | uniq`
 
-#check out length of scaffolds (just peak inside VCF with `less` and look at header, which will also show other scaffold lengths carried over from the original VCF header)
+check out length of scaffolds (just peak inside VCF with `less` and look at header, which will also show other scaffold lengths carried over from the original VCF header)
+
 `less xipho_ARGweaver_tutorial.vcf`
 
 
-## Step 2a. Now, let's remove scaffolds below 110 kb in size. 
-I'm choosing 110 kb, since I will eventually look at ARG stats over 10-kb windows and I will drop 50-kb on the ends of each scaffold, so 110 kb is the minimum scaffold size that I can use. We'll use a bed file to remove the one scaffold under 110 kb, since this way can easy scale up when we have more scaffolds.
+## Step 2a. Remove scaffolds below 110 kb in size. 
+I'm choosing 110 kb as a lower limit on scaffold size because I will eventually look at ARG stats over 10-kb windows and I will drop 50-kb on the ends of each scaffold. Thus, 110 kb is the minimum scaffold size that I can use. We'll use a bed file to remove the one scaffold under 110 kb, since this way can easy scale up when we have more scaffolds to remove.
 
 ```
 vcftools \
@@ -137,8 +143,8 @@ vcftools \
 
 After filtering, kept 89041 out of a possible 89353 Sites
 
-## Step 2b. Something to keep in mind. 
-Later, when setting up the command to run the ARGweaver function `arg-sample`, you will need to either provide a single recombination rate or a recombination map with recombination rates across the genome (as a bed file) to ARGweaver. If you estimate a recombination map with, say, ReLERNN (2020) it is likely that your map will not contain recombination data for all the scaffolds. In that case you can follow the filtering method of 2a again and remove scaffolds with no recombination map data. For the purposes of this tutorial, however, we have recombination data for Chromosome_33_RagTag (`recomb_map.bed`), so we'll keep moving forward.
+## Step 2b. Optional--removal of other scaffolds based on other criteria (such as a lack of recombination data).
+Later, when setting up the command to run the ARGweaver function `arg-sample`, you will need to either provide a single recombination rate or a recombination map with recombination rates across the genome (as a bed file) to ARGweaver. If you estimate a recombination map with, say, ReLERNN (Adrion et al. 2020) it is likely that your map will not contain recombination data for certain smallish scaffolds. In that case you can follow the filtering method of Step 2a again and remove scaffolds with no recombination map data. For the purposes of this tutorial, however, we have recombination data for Chromosome_33_RagTag (`recomb_map.bed`), so we'll keep moving forward.
 
 ## Step 3. Zip and index the VCF file.
 
@@ -148,21 +154,21 @@ tabix -p vcf xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz
 ```
 
 ## Step 4. Create bed file for all scaffolds in the VCF file 
-(provided in this tutorial `final_scaffolds.bed`). To create this, first do a final check of what scaffolds are included in the VCF:
+(Provided in this tutorial `final_scaffolds.bed`). To create this, first do a final check of what scaffolds are included in the VCF:
 ```
 bcftools query -f '%CHROM\n' xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz | uniq
 ```
 
-Then, I usually just do some quick work manual work in excel, grabbing the lengths of the chromosomes/scaffolds from the VCF header (`less xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz`), and creating the final scaffolds bed file.
+Then, you can do some quick manual work in excel, grabbing the lengths of the appropriate chromosomes/scaffolds from the VCF header, and creating the final scaffolds bed file.
 
 ## Step 5. Create the bed map for slicing up the VCF. 
-For our Xiphorhynchus paper we created 2 Mb sliding windows with 100kb overlap, which was quite manageable to process. However, since we only have one small chromosome at this point--long enough for only one window--I'm going to use 500 kb sliding windows with 100 kb overlap, just to generate a few more windows.
+For our Xiphorhynchus paper we created 2 Mb sliding windows with 100kb overlap, which was quite manageable to process. However, since we only have one small chromosome at this point--long enough for only one 2 MB window--I'm going to instead use 500 kb sliding windows with 100 kb overlap, just to generate a few more windows.
 
 ```
 bedtools makewindows -b final_scaffolds.bed -w 500000 -s 400000 > sliding_windows.bed
 ```
 
-## Step 6. Create individual bed files with coordinates for each window we want to create.
+## Step 6. Create individual bed files with coordinates for each VCF window we want to create.
 
 ```
 mkdir -p bed_windows
@@ -195,17 +201,17 @@ for i in ./vcf_windows/*.vcf.gz; do
 done
 ```
 
-Ok, excellent!! We've now got our VCF files chunked and ready to go! Now, before we can set up our ARGweaver analysis, we have a few more steps involving masking low quality sites across the genome.
+Ok, excellent!! We've now got our VCF files chunked and ready to go! Now, before we can set up our ARGweaver analysis, we have a few more steps involving masking of low quality sites across the genome.
 
 
-# Masking Notes: 
-There are two ways to mask in ARGweaver: individual-based masks and use global masks that affect all individuals. For this tutorial, we will focus on the global masks, since this should be sufficient for most projects.
+# Masking 
+There are two ways to mask in ARGweaver: individual-based masks and global masks that affect all individuals. For this tutorial, we will focus on the global masks, since this should be sufficient for most projects.
 
 Our basic strategy will be to create bed files to map poor-quality regions for which we can't be confident in the genotype calls. Then we will combine these bed files to create the final mask map, which will tell ARGweaver to treat these regions as unknown.
 
-## Step 9. Create GATK poor-quality sites bed file.
+## Step 9. Create poor-quality sites bed file based on filter flags.
 
-First, we need to assess what filter flags we have in our VCF file (these flags are added during the GATK pipeline and are generally filtered out of datasets before analyses, since they are consider poor quality according to GATK best practices):
+First, we need to assess what filter flags we have in our VCF file (these flags are often added during the GATK pipeline and are generally filtered out of datasets before analyses, since they are consider poor quality according to GATK best practices):
 
 ```
 bcftools query -f '%FILTER\n' xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz | sort -u > uniq.xipho.GATK.filters.txt
@@ -230,22 +236,26 @@ MQ_filter
 RPRS_filter 
 ```
 
-We can then filter our original VCF to just these sites and then create a bed file from that VCF (`vcf2bed` is a function within bedops):
+We can then filter our original VCF to just these sites and create a bed file from that VCF (`vcf2bed` is a function within bedops):
 ```
 vcftools \
-    --vcfgz xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz \
+    --gzvcf xipho_ARGweaver_tutorial_above110kb.recode.vcf.gz \
     --out xipho_poorGATK \
     --keep-filtered FS_SOR_filter  \
     --keep-filtered MQ_filter  \
     --keep-filtered RPRS_filter  \
     --recode
+```
 
+After filtering, kept 44414 out of a possible 89041 Sites
+
+```
 vcf2bed --max-mem=8G --sort-tmpdir=${PWD} < xipho_poorGATK.recode.vcf > xipho_poorGATK.bed
 ```
 
 ## Step 10. Create a bed file for the N sites and repetitive sites in our reference genome
 
-Now, let's also create a bed file for the N sites and repetitive sites in our reference genome, since these regions could be misleading for our estimation of ARGs--better to treat them as unknown regions. Our reference for the Xiphorhynchus paper is on Dryad (xipho_elegans_ragtagRef_no_W.fa), but it is too big to have here on GitHub. So, I will just show this step and include the bed file output here in the tutorial folder.
+N sites and repetitive sites in the reference genome could mislead our estimation of ARGs--better to treat these sites as unknown regions. Our reference for the Xiphorhynchus paper is on Dryad (`xipho_elegans_ragtagRef_no_W.fa`), but it is too big to have here on GitHub. So, I will just show this step and include the bed file output here in the tutorial folder.
 
 First, we'll turn soft masked regions (repetive regions identified by Repeat Masker) into hard-masked regions: 
 ```
@@ -264,15 +274,25 @@ bedtools merge -d 100 -i xipho_elegans_ragtagRef_no_W_hardMaskedIntervals.bed > 
 
 ## Step 11. Merge poor-quality and gap/repeat bed files for final bed file mask
 ```
-bedops --merge xipho_poorGATK.bed xipho_GapRepeatIntervals_final.bed > xipho_Argweaver_mask.bed
+bedops --merge xipho_poorGATK.bed xipho_merged_GapRepeatIntervals.bed > xipho_Argweaver_mask.bed
 ```
+Great! Now we have a full map of the poor quality GATK-flagged sites and N + repetive sites across the genome.
 
 ## Step 12. Now at last we have all the pieces to put together our first ARGweaver run!
 We use the ARGweaver function `arg-sample` to actually carry out estimation of the Ancestral Recombination Graph and get output smc.gz files. Here is a full `arg-sample` command that incorporates the various files that we filtered and created during this tutorial. The command below takes the first VCF file window that we created: Chromosome_33_RagTag-1.vcf.gz.
 
 ```
-arg-sample --vcf ./vcf_windows/Chromosome_33_RagTag-1.vcf.gz \
---region Chromosome_33_RagTag-1:1-500000 \
+#!/bin/bash
+#PBS -A hpc_argweaver4
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=168:00:00
+#PBS -q single
+#PBS -N Chromosome_33_RagTag-1
+
+cd /project/gthom/a_monc/xipho_project/ARG_tutorial
+
+./ARGweaver/bin/arg-sample --vcf ./vcf_windows/Chromosome_33_RagTag-1.vcf.gz \
+--region Chromosome_33_RagTag:1-500000 \
 --vcf-min-qual 30 \
 --vcf-genotype-filter "DP<5;DP>50;GQ<20" \
 --maskmap xipho_Argweaver_mask.bed \
@@ -289,10 +309,11 @@ arg-sample --vcf ./vcf_windows/Chromosome_33_RagTag-1.vcf.gz \
 -o Chromosome_33_RagTag-1_out
 ```
 
-# Congratulations!! You have now set up the estimation of an Ancestral Recombination Graph with ARGweaver!
-You can now use custom scripts to prepare the jobs across all the VCF windows for which you want to estimate ARGs. Ultimately these job scripts will vary based on your HPC requirements, folder setup, etc.
+# Congratulations!! 
+You have now set up the estimation of an Ancestral Recombination Graph with ARGweaver!
+You can use custom scripts to prepare the jobs across all the VCF windows for which you want to estimate ARGs. Ultimately, the exact setup of these job scripts will vary based on your HPC requirements, paths, etc.
 
-For each `arg-sample` run, you will need to update the `--vcf`, `--region`, and `-o` flags to run different VCF windows. If running on an HPC (highly recommended!), you will want to update the job name too for each run. In this folder I have included an `ARGweaver_jobinfo` file that I used for the Xiphorhynchus paper, that organizes this key info that differed across each `arg-sample` run. Then, I used a custom python script `ARGjobs_xipho.py` to prepare all the jobs. If a job terminates before the desired number of MCMC iterations, you can simply add the flag --resume to carry on from where the ARG estimation left off.
+For each `arg-sample` run, you will need to update the `--vcf`, `--region`, and `-o` flags to run different VCF windows. If running on an HPC (highly recommended!), you will want to update the job name too for each run. In this tutorial folder, I have included an `ARGweaver_jobinfo` file that I used for the Xiphorhynchus paper, that organizes the key info that differed across each `arg-sample` run. Then, I used a custom python script `ARGjobs_xipho.py` (also in the tutorial folder) to prepare all the jobs. If a job terminates before the desired number of MCMC iterations, you can simply add the flag `--resume` to carry on from where the ARG estimation left off.
 
 Once the `arg-sample` runs finish, you will have a set of smc.gz files that you can plug into the nicely prepared [ARG analysis pipeline](https://github.com/CshlSiepelLab/bird_capuchino_analysis/tree/master/ARG_analysis) used for Sporophila seedeaters (Hejase et al. 2020).
 
